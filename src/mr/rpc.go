@@ -23,7 +23,30 @@ type ExampleReply struct {
 }
 
 // Add your RPC definitions here.
+type MapArgs struct {
+	mapf    func(string, string) []KeyValue
+	reducef func(string, []string) string
+}
 
+type MapReply struct {
+	filename   string
+	MapDone    bool
+	NReduce    int
+	taskType   int
+	TaskNumber int
+}
+
+type ReduceArgs struct {
+	filename string
+}
+
+type ReduceReply struct {
+	ReduceDone bool
+	NReduce    int
+	TaskNumber int
+	NMap       int
+	taskType   int
+}
 
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the coordinator.
