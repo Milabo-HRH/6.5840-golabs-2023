@@ -47,7 +47,7 @@ func Worker(mapf func(string, string) []KeyValue,
 func CallReduce(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 	args := ReduceArgs{}
 	reply := ReduceReply{}
-	args.filename = ""
+	args.Filename = ""
 	reply.ReduceDone = false
 	for reply.ReduceDone == false {
 
@@ -55,7 +55,7 @@ func CallReduce(mapf func(string, string) []KeyValue, reducef func(string, []str
 		if ok {
 			if reply.ReduceDone == true {
 				break
-			} else if reply.taskType == -1 {
+			} else if reply.TaskType == -1 {
 				time.Sleep(1 * time.Second)
 			} else {
 				intermediate := []KeyValue{}
@@ -93,10 +93,7 @@ func CallReduce(mapf func(string, string) []KeyValue, reducef func(string, []str
 					i = j
 				}
 				ofile.Close()
-				b := false
-				for b == false {
-					b = call("Coordinator.FinishReduce", &args, &reply)
-				}
+				call("Coordinator.FinishReduce", &reply, nil)
 			}
 		}
 	}
@@ -108,9 +105,9 @@ func CallMaps(mapf func(string, string) []KeyValue, reducef func(string, []strin
 	args := MapArgs{}
 
 	// fill in the argument(s).
-	args.mapf = mapf
-	args.reducef = reducef
-
+	args.Mapf = mapf
+	args.Reducef = reducef
+	args.MachineID = os.Getpid()
 	// declare a reply structure.
 	reply := MapReply{}
 	reply.MapDone = false
@@ -122,18 +119,18 @@ func CallMaps(mapf func(string, string) []KeyValue, reducef func(string, []strin
 			// reply.Y should be 100.
 			if reply.MapDone == true {
 				break
-			} else if reply.taskType == 0 {
-				file, err := os.Open(reply.filename)
+			} else if reply.TaskType == 0 {
+				file, err := os.Open(reply.Filename)
 				if err != nil {
-					fmt.Printf("cannot open %v", reply.filename)
+					fmt.Printf("cannot open %v", reply.Filename)
 				}
 				content, err := ioutil.ReadAll(file)
 				if err != nil {
-					fmt.Printf("cannot read %v", reply.filename)
+					fmt.Printf("cannot read %v", reply.Filename)
 				}
 				file.Close()
 
-				kva := mapf(reply.filename, string(content))
+				kva := mapf(reply.Filename, string(content))
 				buckets := make([][]KeyValue, reply.NReduce)
 				for _, kv := range kva {
 					bucket := ihash(kv.Key) % reply.NReduce
@@ -146,14 +143,18 @@ func CallMaps(mapf func(string, string) []KeyValue, reducef func(string, []strin
 						fmt.Fprintf(file, "%v %v\n", kv.Key, kv.Value)
 					}
 					file.Close()
-					b := false
-					for b == false {
-						b = call("Coordinator.FinishMap", &args, &reply)
+
+				}
+				b := false
+				for b == false {
+					b = call("Coordinator.FinishMap", &reply, nil)
+					if b == false {
+						time.Sleep(time.Second)
 					}
 				}
-			} else if reply.taskType == 2 {
+			} else if reply.TaskType == 2 {
 				break
-			} else if reply.taskType == -1 {
+			} else if reply.TaskType == -1 {
 
 			}
 			time.Sleep(1 * time.Second)

@@ -26,30 +26,50 @@ func (c *Coordinator) Map(args *MapArgs, reply *MapReply) error {
 	c.mu.Lock()
 	if len(c.Files) == c.DoneFiles {
 		reply.MapDone = true
-		reply.taskType = 2
+		reply.TaskType = 2
 		reply.NReduce = c.NReduce
 	} else {
 		reply.MapDone = false
 		if len(c.ArrangedFiles)+c.DoneFiles != len(c.Files) {
-			reply.filename = c.Files[len(c.ArrangedFiles)+c.DoneFiles]
+			print("DoneFiles:", c.DoneFiles, "\n")
+			print("ArrangedFiles:", len(c.ArrangedFiles), "\n")
+			if len(c.ArrangedFiles)+c.DoneFiles > len(c.Files) {
+				for k := range c.ArrangedFiles {
+					print(k, " ")
+				}
+				print("\n")
+			}
+			reply.Filename = c.Files[len(c.ArrangedFiles)+c.DoneFiles]
 			reply.NReduce = c.NReduce
-			reply.taskType = 0
+			reply.TaskType = 0
 			reply.TaskNumber = len(c.ArrangedFiles) + c.DoneFiles
 			c.ArrangedFiles[len(c.ArrangedFiles)+c.DoneFiles] = 1
 		} else {
-			reply.taskType = -1
-			for i := 0; i < len(c.ArrangedFiles); i++ {
-				if c.ArrangedFiles[i] == 50 {
-					reply.filename = c.Files[i]
+			reply.TaskType = -1
+			for k, v := range c.ArrangedFiles {
+				if v == 50 {
+					reply.Filename = c.Files[k]
 					reply.NReduce = c.NReduce
-					reply.taskType = 0
-					reply.TaskNumber = i
-					c.ArrangedFiles[i] = 1
+					reply.TaskType = 0
+					reply.TaskNumber = k
+					c.ArrangedFiles[k] = 1
 					break
 				} else {
-					c.ArrangedFiles[i]++
+					c.ArrangedFiles[k]++
 				}
 			}
+			//for i := 0; i < len(c.ArrangedFiles); i++ {
+			//	if c.ArrangedFiles[i] == 50 {
+			//		reply.Filename = c.Files[i]
+			//		reply.NReduce = c.NReduce
+			//		reply.TaskType = 0
+			//		reply.TaskNumber = i
+			//		c.ArrangedFiles[i] = 1
+			//		break
+			//	} else {
+			//		c.ArrangedFiles[i]++
+			//	}
+			//}
 		}
 	}
 	c.mu.Unlock()
@@ -61,17 +81,18 @@ func (c *Coordinator) Reduce(args *ReduceArgs, reply *ReduceReply) error {
 	reply.NMap = len(c.Files)
 	c.mu.Lock()
 	if c.reduceFinished == c.NReduce {
-		reply.taskType = 2
+		reply.TaskType = 2
 		reply.ReduceDone = true
 	} else {
 		if len(c.reduceLog)+c.reduceFinished != c.NReduce {
-			reply.taskType = 1
+			reply.TaskType = 1
 			reply.TaskNumber = len(c.reduceLog) + c.reduceFinished
+			c.reduceLog[len(c.reduceLog)+c.reduceFinished] = 1
 		} else {
-			reply.taskType = -1
-			for i := 0; i < len(c.reduceLog); i++ {
-				if c.reduceLog[i] == 50 {
-					reply.taskType = 1
+			reply.TaskType = -1
+			for i, v := range c.reduceLog {
+				if v == 50 {
+					reply.TaskType = 1
 					reply.TaskNumber = i
 					c.reduceLog[i] = 1
 					break
@@ -85,18 +106,26 @@ func (c *Coordinator) Reduce(args *ReduceArgs, reply *ReduceReply) error {
 	return nil
 }
 
-func (c *Coordinator) FinishMap(args *MapArgs, reply *MapReply) error {
+func (c *Coordinator) FinishMap(args *MapReply, reply *MapArgs) error {
 	c.mu.Lock()
 	c.DoneFiles++
-	delete(c.ArrangedFiles, reply.TaskNumber)
+	//print("TaskNO: ", args.TaskNumber)
+	//for k := range c.ArrangedFiles {
+	//	print(k, "\n")
+	//}
+	delete(c.ArrangedFiles, args.TaskNumber)
 	c.mu.Unlock()
 	return nil
 }
 
-func (c *Coordinator) FinishReduce(args *MapArgs, reply *MapReply) error {
+func (c *Coordinator) FinishReduce(args *ReduceReply, reply *MapArgs) error {
 	c.mu.Lock()
 	c.reduceFinished++
-	delete(c.reduceLog, reply.TaskNumber)
+	print("TaskNO: ", args.TaskNumber, "\n")
+	for k := range c.reduceLog {
+		print(k, "\n")
+	}
+	delete(c.reduceLog, args.TaskNumber)
 	c.mu.Unlock()
 	return nil
 }
@@ -146,7 +175,8 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	// Your code here.
 	c.Files = files
 	c.NReduce = nReduce
-
+	c.ArrangedFiles = make(map[int]int)
+	c.reduceLog = make(map[int]int)
 	c.server()
 	return &c
 }
